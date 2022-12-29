@@ -417,6 +417,14 @@ int draw_graph(std::vector<float> x, std::vector<float> y)
                 window.close();
         }
         window.clear();
+        sf::Vertex points[] =
+             {
+                  sf::Vertex(sf::Vector2f(0, midy)),
+                  sf::Vertex(sf::Vector2f(s1, midy))
+                };
+        window.draw(points, 2, sf::Lines);
+
+
         for (int i = 0; i < x.size(); i++)
         {
             int c = 3000;

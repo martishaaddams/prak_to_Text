@@ -240,7 +240,7 @@ int closest(double x, double y, vector<vertex> c)
 {
 	double r;
 	double rmin=-1;
-	int index;
+	int index=-1;
 	for (int i = 1; i < c.size(); i++)
 	{
 		
@@ -252,6 +252,25 @@ int closest(double x, double y, vector<vertex> c)
 		}
 		
 		
+	}
+	return index;
+}
+int closest(double x, double y, vector<int>num, vector<vertex> c)
+{
+	double r;
+	double rmin = -1;
+	int index;
+	for (int i = 1; i < num.size(); i++)
+	{
+
+		r = sqrt(pow(x - c[num[i]].x, 2) + pow(y - c[num[i]].y, 2));
+		if (rmin == -1 || r < rmin)
+		{
+			rmin = r;
+			index = i;
+		}
+
+
 	}
 	return index;
 }
@@ -289,21 +308,119 @@ vector<float> getanalyticalsol(vertex loc, float p, float a)
 	return res;
 }
 //Eigen::VectorXf interpolation(Eigen)
+//{
+//}
 //vector<float>solution(double xb, double yb, double xe, double ye, double h, Eigen::VectorXf u, Eigen::Matrix3f D)
 //{
 //	//sigma = dbu
 //
 //}
 
-/*vector<double> step(double x, double y, vector<vertex>& c, vector<element>& el, Eigen::VectorXf u)//vector<vector<el>> boundaries)
-{
-	int index = closest(x, y, c);
 
+vector<float> step(double xb, double yb, double xe, double ye, double h, vector<vertex>& c, vector<element>& el, Eigen::VectorXf u,Eigen::Matrix3f D,float &error)//vector<vector<el>> boundaries)
+{
+	vector<float> res;
+	double x = xb;
+	double y = yb;
+	bool check= false;
+	//int ind = closest(x,y,c);
+	if (yb == ye)
+	{
+		check = true;
+	}
 	
-}*/
+	int index = closest(x, y, c);
+	while (x < xe)
+	{
+		if (!check)
+		{
+			y = (yb - ye) * x / (xb - xe) + yb;
+
+		}
+		float r= sqrt(pow(x, 2) + pow(y, 2));
+		int elemindex=-1;
+		Eigen::Matrix3f C;
+		for (int i = 0; i < c[index].in_element_id.size(); i++)
+		{
+			Eigen::Matrix3f C1,C2,C3;
+			C1 << 1, c[el[c[index].in_element_id[i]].num[0]].x, c[el[c[index].in_element_id[i]].num[0]].y,
+				1, c[el[c[index].in_element_id[i]].num[1]].x, c[el[c[index].in_element_id[i]].num[1]].y,
+				1, x, y;
+			C2 << 1, c[el[c[index].in_element_id[i]].num[2]].x, c[el[c[index].in_element_id[i]].num[2]].y,
+				1, c[el[c[index].in_element_id[i]].num[1]].x, c[el[c[index].in_element_id[i]].num[1]].y,
+				1, x, y;
+			C1 << 1, c[el[c[index].in_element_id[i]].num[0]].x, c[el[c[index].in_element_id[i]].num[0]].y,
+				1, c[el[c[index].in_element_id[i]].num[2]].x, c[el[c[index].in_element_id[i]].num[2]].y,
+				1, x, y;
+			C << 1, c[el[c[index].in_element_id[i]].num[0]].x, c[el[c[index].in_element_id[i]].num[0]].y,
+				1, c[el[c[index].in_element_id[i]].num[1]].x, c[el[c[index].in_element_id[i]].num[1]].y,
+				1, c[el[c[index].in_element_id[i]].num[2]].x, c[el[c[index].in_element_id[i]].num[2]].y;
+
+			double s1 = C1.determinant() + C2.determinant() + C3.determinant();
+			//s = s / 2;
+			double s = C.determinant();
+			if (abs(s - s1 )< 0.00001)
+			{
+				elemindex = c[index].in_element_id[i];
+				break;
+			}
+		}
+		Eigen::Matrix3f IC = C.inverse();
+		Eigen::Matrix<float, 3, 6> B;
+		for (int i = 0; i < 3; i++)
+		{
+			B(0, 2 * i + 0) = IC(1, i);
+			B(0, 2 * i + 1) = 0.0f;
+			B(1, 2 * i + 0) = 0.0f;
+			B(1, 2 * i + 1) = IC(2, i);
+			B(2, 2 * i + 0) = IC(2, i);
+			B(2, 2 * i + 1) = IC(1, i);
+		}
+		if (elemindex != -1)
+		{
+			Eigen::VectorXf ukus(6);
+			ukus << u[2 * el[elemindex].num[0]], u[2 * el[elemindex].num[0] + 1],
+				u[2 * el[elemindex].num[1]], u[2 * el[elemindex].num[1] + 1],
+				u[2 * el[elemindex].num[2]], u[2 * el[elemindex].num[2] + 1];
+
+			auto sigma = D * B * ukus;//xx,yy,xy
+			res.push_back(sigma[0]);
+			std::cout << x << " " << y << " " << std::endl;
+			Eigen::Matrix3f coef;
+			coef <<
+				pow(x, 2) / pow(r, 2), pow(y, 2) / pow(r, 2), -2 * x * y / pow(r, 2),
+				pow(x, 2) / pow(r, 2), pow(y, 2) / pow(r, 2), 2 * x * y / pow(r, 2),
+				x* y / pow(r, 2), -x * y / pow(r, 2), pow(x, 2) / pow(r, 2) - pow(y, 2) / pow(r, 2);
+			vertex loc;
+			loc.x = x;
+			loc.y = y;
+			float err = (coef * sigma)[0] - getanalyticalsol(loc, PP, 0.01)[0];
+			if (error <err)
+			{
+				error = err;
+			}
+		}
+		if (elemindex != -1)
+		{
+			std::cout << -1 << x << " " << y << " " << std::endl;//index = closest(x, y, c[index].connections, c);
+		}
+		//else*/
+		x = x + h;
+		y = (yb - ye) * x / (xe - xb) + yb;
+		auto v(c[index].connections);
+		v.push_back(index);
+	
+		
+			index = closest(x, y, c);
+		
+	}
+	return res;
+	
+}
 vector<float> analytical(double xb, double yb,double xe,double ye,double h)
 {
 	vector<float> res;
+	vector<float> resmini;
 	vertex loc;
 	double x = xb;
 	double y = yb;
@@ -314,15 +431,24 @@ vector<float> analytical(double xb, double yb,double xe,double ye,double h)
 	}
 	while (x < xe)
 	{
-		x = x + h;
+		
 		if (!c)
 		{
-			y = (yb - ye) * x / (xe - xb) ;
+			y = (yb - ye) * x / (xe - xb)+yb ;
 
 		}
 		loc.x = x;
 		loc.y = y;
-		res.push_back(getanalyticalsol(loc,PP,0.01)[0]);
+		double r = sqrt(pow(x, 2) + pow(y, 2));
+		Eigen::Matrix3f coef;
+		coef<<
+			pow(x,2)/pow(r,2), pow(y, 2) / pow(r, 2), -2*x*y / pow(r, 2),
+			pow(x, 2) / pow(r, 2), pow(y, 2) / pow(r, 2), 2 * x * y / pow(r, 2),
+			x* y / pow(r, 2), -x* y / pow(r, 2), pow(x, 2) / pow(r, 2)- pow(y, 2) / pow(r, 2);
+		resmini = getanalyticalsol(loc, PP, 0.01);
+		auto sigm=coef.inverse()* Eigen::Vector3f (resmini[0],resmini[1],resmini[2]);
+		res.push_back(sigm[0]);
+		x = x + h;
 			
 	}
 	return res;
@@ -564,7 +690,7 @@ void SetConstraints(Eigen::SparseMatrix<float>::InnerIterator& it, int index)
 	}
 }
 
-void applyconstraints(vector<edge> b, Eigen::SparseMatrix<float> &K, Eigen::SparseMatrix<float> &F)
+void applyconstraintsx(vector<edge> b, Eigen::SparseMatrix<float> &K, Eigen::SparseMatrix<float> &F)
 {
 	//x-val->0;
 	//y-va->+1
@@ -576,9 +702,9 @@ void applyconstraints(vector<edge> b, Eigen::SparseMatrix<float> &K, Eigen::Spar
 			{
 				
 				SetConstraints(it, 2 * b[i].start); 
-				SetConstraints(it, 2 * b[i].start+1);
+				//SetConstraints(it, 2 * b[i].start+1);
 				SetConstraints(it, 2 * b[i].end);
-				SetConstraints(it, 2 * b[i].end+1);
+				//SetConstraints(it, 2 * b[i].end+1);
 			}
 		}
 	}
@@ -597,6 +723,40 @@ void applyconstraints(vector<edge> b, Eigen::SparseMatrix<float> &K, Eigen::Spar
 	}
 
 	
+}
+void applyconstraintsy(vector<edge> b, Eigen::SparseMatrix<float>& K, Eigen::SparseMatrix<float>& F)
+{
+	//x-val->0;
+	//y-va->+1
+	for (int k = 0; k < K.outerSize(); ++k)
+	{
+		for (Eigen::SparseMatrix<float>::InnerIterator it(K, k); it; ++it)
+		{
+			for (int i = 0; i < b.size(); i++)
+			{
+
+				//SetConstraints(it, 2 * b[i].start);
+				SetConstraints(it, 2 * b[i].start + 1);
+				//SetConstraints(it, 2 * b[i].end);
+				SetConstraints(it, 2 * b[i].end + 1);
+			}
+		}
+	}
+	for (int k = 0; k < F.outerSize(); ++k)
+	{
+		for (Eigen::SparseMatrix<float>::InnerIterator it(F, k); it; ++it)
+		{
+			for (int i = 0; i < b.size(); i++)
+			{
+				if (2 * b[i].start == k || 2 * b[i].start + 1 == k || 2 * b[i].end == k || 2 * b[i].end + 1 == k)
+				{
+					it.valueRef() = 0;
+				}
+			}
+		}
+	}
+
+
 }
 int main()
 {
@@ -890,11 +1050,17 @@ int main()
 
 	D *= youngModulus / (1.0f - pow(poissonRatio, 2.0f));
 
+	vector<edge>boundp;
+	boundp.insert(boundp.end(), upbounds.begin(), upbounds.end());
+	boundp.insert(boundp.end(), rightbounds.begin(), rightbounds.end());
+
 	Eigen::SparseMatrix<float> K;
 	Eigen::SparseMatrix<float> F;
 	K = generatek(D, arr_elem, arr_Coord);
-	F = getp(upbounds, arr_Coord, 100000000);
-	applyconstraints(leftbounds, K, F);
+	F = getp(boundp, arr_Coord, 100000000);
+	applyconstraintsx(leftbounds, K, F);
+	applyconstraintsy(downbounds,K,F);
+
 	Eigen::SimplicialLDLT<Eigen::SparseMatrix<float> > solver(K);
 	Eigen::VectorXf displacements = solver.solve(F);
 	//cout << displacements;
@@ -925,7 +1091,7 @@ int main()
 	}
 	int index=closest(xmin, 0, arr_Coord);
 	cout << index << " " << arr_Coord[index].x << " " << arr_Coord[index].y << endl;
-	int colst = 1000;//stepamount
+	int colst = 100;//stepamount
 	double h = (xmax - xmin) / colst;
 	//double x = xmin;
 	vector<float> x;
@@ -934,9 +1100,12 @@ int main()
 		x.push_back(xmin + i * h);
 	}
 	
-		vector<float> y;
-	y=analytical(xmin, 0, xmax, 0, h);
-	draw_graph(x, y);
+	vector<float> y,y1;
+	float error;
+	y1 = step(xmin, xmin, xmax, xmax, h, arr_Coord, arr_elem, displacements, D,error);
+	
+	y=analytical(0, 0, xmax, xmax, h);
+	draw_graph(x, y1);
 
 
 
